@@ -1,0 +1,66 @@
+{
+  "name": "acmi-parser",
+  "version": "1.0.0",
+  "description": "ACMI file format parser",
+  "author": "jfayot",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jfayot/acmi-parser.git"
+  },
+  "keywords": [
+    "ACMI",
+    "Tacview",
+    "parser",
+    "cesium"
+  ],
+  "homepage": "https://github.com/jfayot/acmi-parser",
+  "bugs": "https://github.com/jfayot/acmi-parser/issues",
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/acmi-parser.cjs",
+  "module": "./dist/acmi-parser.js",
+  "types": "./dist/types/acmi-parser.d.ts",
+  "exports": {
+    "types": "./dist/types/acmi-parser.d.ts",
+    "import": "./dist/acmi-parser.js",
+    "require": "./dist/acmi-parser.cjs"
+  },
+  "scripts": {
+    "build": "vite build",
+    "clean": "rimraf dist",
+    "clean:all": "pnpm clean && rimraf node_modules",
+    "release": "pnpm build && npm publish"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint",
+      "prettier --write"
+    ],
+    "*.json": [
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "@math.gl/geoid": "^4.0.0",
+    "binary-search-bounds": "^2.0.5",
+    "@cesium/engine": "^6.1.1",
+    "dayjs": "^1.11.10",
+    "unzipit": "^1.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11",
+    "vite-plugin-dts": "^3.7.0"
+  }
+}

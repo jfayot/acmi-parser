@@ -1,0 +1,39 @@
+{
+  "name": "acmi-parser-demo",
+  "version": "1.0.0",
+  "private": true,
+  "author": "jfayot",
+  "license": "MIT",
+  "scripts": {
+    "build:parser": "pnpm -F acmi-parser build",
+    "build:demo-node": "pnpm -F demo-node build",
+    "build:demo-browser": "pnpm -F demo-browser build",
+    "build:demos": "pnpm build:demo-node && pnpm build:demo-browser",
+    "build": "pnpm build:parser && pnpm build:demos",
+    "dev:demo-node": "pnpm -F demo-node dev",
+    "dev:demo-browser": "pnpm -F demo-browser dev",
+    "start:demo-node": "pnpm -F demo-node start",
+    "start:demo-browser": "pnpm -F demo-browser preview",
+    "clean": "pnpm -r --parallel clean",
+    "clean:all": "pnpm -r --parallel clean:all && rimraf node_modules",
+    "release": "pnpm -r --parallel release"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@commitlint/cli": "^18.4.4",
+    "@commitlint/config-conventional": "^18.4.4",
+    "@commitlint/types": "^18.4.4",
+    "@typescript-eslint/eslint-plugin": "^6.18.1",
+    "@typescript-eslint/parser": "^6.18.1",
+    "eslint": "^8.56.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "rimraf": "^5.0.5"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "binary-search-bounds@2.0.5": "patches/binary-search-bounds@2.0.5.patch"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "demo-node",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc && pnpm copy:resources",
+    "start": "node dist/index.js",
+    "copy:resources": "shx cp -r src/resources dist/.",
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "clean:all": "pnpm clean && rimraf node_modules"
+  },
+  "dependencies": {
+    "acmi-parser": "workspace:^",
+    "dayjs": "^1.11.10"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.8",
+    "shx": "^0.3.4",
+    "ts-node": "^10.9.2"
+  }
+}
