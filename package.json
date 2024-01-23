@@ -30,10 +30,5 @@
     "lint-staged": "^15.2.0",
     "prettier": "^3.1.1",
     "rimraf": "^5.0.5"
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "binary-search-bounds@2.0.5": "patches/binary-search-bounds@2.0.5.patch"
-    }
   }
 }

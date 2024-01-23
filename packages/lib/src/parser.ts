@@ -1,7 +1,10 @@
+import { parsePGM } from "@math3d";
 import dayjs from "dayjs";
 import { unzip } from "unzipit";
-import { AcmiData, EntityProps, Frame, ITransform } from "./acmiData.js";
-import { Trajectory } from "./trajectory.js";
+import Transform from "./acmi/transform";
+import AcmiData from "./acmi/acmiData";
+import Frame from "./acmi/frame";
+import Entity from "./acmi/entity";
 
 export interface AcmiParserOptions {
   filter?: string[];
@@ -17,16 +20,15 @@ export default class AcmiParser {
   private _filteredIds: number[] = [];
   private _data = new AcmiData();
   private _filter: string[] = [];
-  private _refLat: number = 0;
-  private _refLong: number = 0;
+
   private readonly _acmiVersions = ["2.1", "2.2"];
   private readonly _acmiType = "text/acmi/tacview";
   private readonly _propertySeparator = /(?<!\\),/;
   private readonly _headerPattern =
     /^\ufeff?FileType=(?<type>.*)\r?\nFileVersion=(?<version>.*)\r?\n/;
 
-  public constructor(geoidModel: Uint8Array) {
-    Trajectory.loadGeoidModel(geoidModel);
+  public constructor(geoidPgm?: Uint8Array) {
+    if (geoidPgm !== undefined) Transform.geoid = parsePGM(geoidPgm, {});
   }
 
   private _isValidVersion() {
@@ -52,7 +54,7 @@ export default class AcmiParser {
     }
   }
 
-  private async _parseContent(buffer: Uint8Array) {
+  private _parseContent(buffer: Uint8Array) {
     const length = buffer.length;
     let start = 0;
     let current = 0;
@@ -93,13 +95,18 @@ export default class AcmiParser {
       frames.push(this._currentFrame);
 
       const referenceTime = data.globalProperties.referenceTime;
-      const firstNonEmptyFrameIndex = frames.findIndex((frame) => frame.scene.size > 0);
+      const firstNonEmptyFrameIndex = frames.findIndex(
+        (frame) => frame.scene.size > 0
+      );
       if (referenceTime.isValid() && firstNonEmptyFrameIndex !== -1) {
         data.timeSpan.start = referenceTime.add(
           frames[firstNonEmptyFrameIndex].timeStamp,
-          "seconds",
+          "seconds"
         );
-        data.timeSpan.end = referenceTime.add(frames[frames.length - 1].timeStamp, "seconds");
+        data.timeSpan.end = referenceTime.add(
+          frames[frames.length - 1].timeStamp,
+          "seconds"
+        );
       } else data.isValid = false;
     }
   }
@@ -155,11 +162,11 @@ export default class AcmiParser {
               break;
             case "ReferenceLongitude":
               globProp.referenceLongitude = +propValue;
-              this._refLong = globProp.referenceLongitude;
+              Transform.refLong = globProp.referenceLongitude;
               break;
             case "ReferenceLatitude":
               globProp.referenceLatitude = +propValue;
-              this._refLat = globProp.referenceLatitude;
+              Transform.refLat = globProp.referenceLatitude;
               break;
             default:
               if (globProp.additionalProps === undefined)
@@ -180,7 +187,10 @@ export default class AcmiParser {
       if (newTimeStamp !== this._currentTimeStamp) {
         frames.push(currentFrame);
         this._currentTimeStamp = newTimeStamp;
-        this._currentFrame = new Frame(this._currentTimeStamp, currentFrame.scene);
+        this._currentFrame = new Frame(
+          this._currentTimeStamp,
+          currentFrame.scene
+        );
       }
     } else if (line.startsWith("-")) {
       const id = parseInt(line.slice(1), 16);
@@ -188,7 +198,7 @@ export default class AcmiParser {
       if (entityProps) {
         entityProps.timeSpan.end = data.globalProperties.referenceTime.add(
           this._currentTimeStamp,
-          "second",
+          "second"
         );
       }
 
@@ -202,10 +212,10 @@ export default class AcmiParser {
         let newEntity = false;
         if (entityProps === undefined) {
           newEntity = true;
-          entityProps = new EntityProps(id);
+          entityProps = new Entity(id);
           entityProps.timeSpan.start = data.globalProperties.referenceTime.add(
             this._currentTimeStamp,
-            "second",
+            "second"
           );
         }
 
@@ -242,10 +252,11 @@ export default class AcmiParser {
                 break;
               case "destroyed":
                 if (+value === 1) {
-                  entityProps!.timeSpan.end = data.globalProperties.referenceTime.add(
-                    this._currentTimeStamp,
-                    "second",
-                  );
+                  entityProps!.timeSpan.end =
+                    data.globalProperties.referenceTime.add(
+                      this._currentTimeStamp,
+                      "second"
+                    );
                 }
                 break;
               default:
@@ -274,41 +285,24 @@ export default class AcmiParser {
         }
 
         if (filteredIds.indexOf(id) >= 0) {
-          const refLong = this._refLong;
-          const refLat = this._refLat;
-
           // Handle Transform property
           const indexT = props.findIndex((prop) => prop.startsWith("T="));
           if (indexT >= 0) {
             const prop = props[indexT];
             const equalPos = prop.indexOf("=");
             if (equalPos >= 0) {
-              const currentTransform = currentFrame.scene.get(id);
-              const transform: ITransform = {
-                latitude: currentTransform?.latitude ?? 0,
-                longitude: currentTransform?.longitude ?? 0,
-                altitude: currentTransform?.altitude ?? 0,
-                yaw: currentTransform?.yaw,
-                pitch: currentTransform?.pitch,
-                roll: currentTransform?.roll,
-              };
               // Parse entity's coordinates
               const propValue = prop.slice(equalPos + 1);
               const coords = propValue.split("|");
-              if (coords.length <= 5) {
-                if (coords[0].length) transform.longitude = refLong + +coords[0];
-                if (coords[1].length) transform.latitude = refLat + +coords[1];
-                if (coords[2].length) transform.altitude = +coords[2];
-              } else {
-                if (coords[0].length) transform.longitude = refLong + +coords[0];
-                if (coords[1].length) transform.latitude = refLat + +coords[1];
-                if (coords[2].length) transform.altitude = +coords[2];
-                if (coords[3].length) transform.roll = +coords[3];
-                if (coords[4].length) transform.pitch = +coords[4];
-                if (coords[5].length) transform.yaw = +coords[5];
-              }
 
-              currentFrame.scene.set(id, transform);
+              const components = coords.map((coord) =>
+                coord?.length > 0 ? +coord : undefined
+              );
+
+              currentFrame.scene.set(
+                id,
+                new Transform(components, currentFrame.scene.get(id))
+              );
             }
           }
         }
@@ -319,47 +313,42 @@ export default class AcmiParser {
     this._currentLine = "";
   }
 
-  private _isZipped(data: Uint8Array) {
-    if (data.length > 1) return new TextDecoder().decode(data.slice(0, 2)) === "PK";
-    return false;
-  }
-
   private async _unzip(data: Uint8Array) {
-    const { entries } = await unzip(data);
-    const zipEntries = Object.values(entries);
-    if (zipEntries.length === 1) return new Uint8Array(await zipEntries[0].arrayBuffer());
-    throw "Invalid compressed ACMI file";
+    let isZipped = false;
+    if (data.length > 1)
+      isZipped = new TextDecoder().decode(data.slice(0, 2)) === "PK";
+
+    if (isZipped) {
+      const { entries } = await unzip(data);
+      const zipEntries = Object.values(entries);
+      if (zipEntries.length === 1)
+        return new Uint8Array(await zipEntries[0].arrayBuffer());
+      throw "Invalid compressed ACMI file";
+    } else return data;
   }
 
-  private async _parseBuffer(buffer: Uint8Array) {
+  private _parseBuffer(buffer: Uint8Array) {
     this._parseHeader(buffer);
-    await this._parseContent(buffer);
+    this._parseContent(buffer);
 
     // Finalize entities time span
     this._data.entities.forEach((entity) => {
-      if (!entity.timeSpan.end.isValid()) entity.timeSpan.end = this._data.timeSpan.end.clone();
+      if (!entity.timeSpan.end.isValid())
+        entity.timeSpan.end = this._data.timeSpan.end.clone();
     });
 
     return this._data;
   }
 
   public async parse(data: Uint8Array, options?: AcmiParserOptions) {
-    return new Promise<AcmiData>((resolve, reject) => {
-      options?.controller?.signal.addEventListener("abort", reject);
+    this._data = new AcmiData();
+    this._filter = options?.filter ?? [];
+    this._currentLine = "";
+    this._currentTimeStamp = 0;
+    this._currentFrame = new Frame(this._currentTimeStamp);
+    this._destroyedIds = [];
+    this._filteredIds = [];
 
-      this._data = new AcmiData();
-      this._filter = options?.filter ?? [];
-      this._currentLine = "";
-      this._currentTimeStamp = 0;
-      this._currentFrame = new Frame(this._currentTimeStamp);
-      this._destroyedIds = [];
-      this._filteredIds = [];
-
-      if (this._isZipped(data))
-        this._unzip(data).then((buffer) =>
-          this._parseBuffer(buffer).then((acmiData) => resolve(acmiData)),
-        );
-      else this._parseBuffer(data).then((acmiData) => resolve(acmiData));
-    });
+    return this._parseBuffer(await this._unzip(data));
   }
 }

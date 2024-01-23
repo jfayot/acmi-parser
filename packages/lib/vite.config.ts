@@ -17,4 +17,9 @@ export default defineConfig({
       },
     },
   },
+  resolve: {
+    alias: {
+      "@math3d": "./src/math3d/index.ts",
+    },
+  },
 });

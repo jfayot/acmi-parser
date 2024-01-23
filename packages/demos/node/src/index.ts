@@ -5,12 +5,21 @@ import fs from "node:fs";
 import path from "node:path";
 import AcmiParser from "acmi-parser";
 
-const sample = fs.readFileSync(path.join(__dirname, "resources/sample.zip.acmi"));
+const sample = fs.readFileSync(
+  path.join(__dirname, "resources/sample.zip.acmi")
+);
 const model = fs.readFileSync(path.join(__dirname, "resources/egm2008-5.pgm"));
 
 const parser = new AcmiParser(model);
 
-const filter: string[] = ["Weapon", "Untyped", "Navaid", "Misc", "Projectile", "Parachutist"];
+const filter: string[] = [
+  "Weapon",
+  "Untyped",
+  "Navaid",
+  "Misc",
+  "Projectile",
+  "Parachutist",
+];
 
 let start = dayjs();
 parser.parse(sample, { filter: filter }).then((data) => {
@@ -20,7 +29,6 @@ parser.parse(sample, { filter: filter }).then((data) => {
   start = dayjs();
   const trajectories = data.createSampledTrajectories({
     sampleRate: 1,
-    fixMslHeight: true,
     emulateOrientation: true,
   });
   end = dayjs();
@@ -32,14 +40,13 @@ parser.parse(sample, { filter: filter }).then((data) => {
     const samples = trajectory.samples;
 
     samples.forEach((sample) => {
-      const state = sample.state;
-      const pos = state.position;
-      const orient = state.orientation;
+      const pos = sample.stateVector.cartesian;
+      const orient = sample.stateVector.quaternion;
 
       stream.write(
         `${sample.time.toISOString()},${pos.x},${pos.y},${
           pos.z
-        },${orient?.x},${orient?.y},${orient?.z},${orient?.w}\n`,
+        },${orient?.x},${orient?.y},${orient?.z},${orient?.w}\n`
       );
     });
 

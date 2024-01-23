@@ -52,9 +52,6 @@
     ]
   },
   "dependencies": {
-    "@math.gl/geoid": "^4.0.0",
-    "binary-search-bounds": "^2.0.5",
-    "@cesium/engine": "^6.1.1",
     "dayjs": "^1.11.10",
     "unzipit": "^1.4.3"
   },

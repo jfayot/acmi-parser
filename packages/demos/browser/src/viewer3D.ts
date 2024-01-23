@@ -2,6 +2,7 @@ import {
   BoundingSphere,
   BoundingSphereState,
   CallbackProperty,
+  Cartesian3,
   CesiumWidget,
   Color,
   DataSourceCollection,
@@ -25,7 +26,7 @@ dayjs.extend(duration);
 import f18c from "./resources/F-18C.glb?url";
 import su27 from "./resources/SU-27.glb?url";
 import { notEmpty } from "./utils/notEmpty";
-import { AcmiData, IEntityProps, Trajectory } from "acmi-parser";
+import { AcmiData, Entity as AcmiEntity, Trajectory } from "acmi-parser";
 
 export default class Viewer3D {
   private _widget: CesiumWidget;
@@ -39,7 +40,9 @@ export default class Viewer3D {
   private _controller = new AbortController();
 
   constructor(cesiumRoot: HTMLDivElement) {
-    this._widget = new CesiumWidget(cesiumRoot, { terrain: Terrain.fromWorldTerrain() });
+    this._widget = new CesiumWidget(cesiumRoot, {
+      terrain: Terrain.fromWorldTerrain(),
+    });
     const scene = this._widget.scene;
     scene.globe.depthTestAgainstTerrain = true;
     scene.globe.enableLighting = true;
@@ -50,8 +53,12 @@ export default class Viewer3D {
     });
     this._entities = this._dataSourceDisplay.defaultDataSource.entities;
 
-    this._removeTickCb = this._widget.clock.onTick.addEventListener(this._tickHandler);
-    this._removePostRenderCb = scene.postRender.addEventListener(this._postRenderHandler);
+    this._removeTickCb = this._widget.clock.onTick.addEventListener(
+      this._tickHandler
+    );
+    this._removePostRenderCb = scene.postRender.addEventListener(
+      this._postRenderHandler
+    );
   }
 
   public destroy() {
@@ -62,15 +69,27 @@ export default class Viewer3D {
     this._widget.destroy();
   }
 
-  private _createEntity(id: number, trajectory: Trajectory, entity: IEntityProps) {
+  private _createEntity(
+    id: number,
+    trajectory: Trajectory,
+    entity: AcmiEntity
+  ) {
     const timeSpan = entity.timeSpan;
     const startTime = JulianDate.fromDate(timeSpan.start.toDate());
     const endTime = JulianDate.fromDate(timeSpan.end.toDate());
     const samples = trajectory.samples;
 
     const orientationSpline = new QuaternionSpline({
-      times: samples.map((sample) => dayjs.duration(sample.time.diff(timeSpan.start)).asSeconds()),
-      points: samples.map((sample) => sample.state.orientation).filter(notEmpty),
+      times: samples.map((sample) =>
+        dayjs.duration(sample.time.diff(timeSpan.start)).asSeconds()
+      ),
+      points: samples
+        .map((sample) =>
+          sample.stateVector.quaternion
+            ? Quaternion.unpack(sample.stateVector.quaternion)
+            : undefined
+        )
+        .filter(notEmpty),
     });
 
     const scratch = new Quaternion();
@@ -85,9 +104,12 @@ export default class Viewer3D {
       interpolationDegree: 2,
     });
     samples.forEach((sample) => {
-      const time = JulianDate.fromIso8601(sample.time.toISOString(), new JulianDate());
-      const pos = sample.state.position;
-      sampledPos.addSample(time, pos);
+      const time = JulianDate.fromIso8601(
+        sample.time.toISOString(),
+        new JulianDate()
+      );
+      const pos = sample.stateVector.cartesian;
+      sampledPos.addSample(time, Cartesian3.unpack(pos));
     });
 
     return new Entity({
@@ -103,13 +125,17 @@ export default class Viewer3D {
       model: new ModelGraphics({
         uri: entity.name === "FA-18C_hornet" ? f18c : su27,
         minimumPixelSize: 48,
-        color: entity.color ? Color.fromCssColorString(entity.color) : undefined,
+        color: entity.color
+          ? Color.fromCssColorString(entity.color)
+          : undefined,
       }),
       path: {
         width: 2,
         leadTime: 30,
         trailTime: 30,
-        material: entity.color ? Color.fromCssColorString(entity.color) : undefined,
+        material: entity.color
+          ? Color.fromCssColorString(entity.color)
+          : undefined,
       },
     });
   }
@@ -123,7 +149,6 @@ export default class Viewer3D {
     const entities = acmiData.entities;
     const trajectories = acmiData.createSampledTrajectories({
       sampleRate: 1,
-      fixMslHeight: true,
       emulateOrientation: true,
     });
     for (const [id, trajectory] of trajectories) {
@@ -134,7 +159,9 @@ export default class Viewer3D {
       }
     }
 
-    const startTime = JulianDate.fromIso8601(acmiData.timeSpan.start.toISOString());
+    const startTime = JulianDate.fromIso8601(
+      acmiData.timeSpan.start.toISOString()
+    );
     const endTime = JulianDate.fromIso8601(acmiData.timeSpan.end.toISOString());
 
     this._start = startTime.clone();
@@ -148,7 +175,11 @@ export default class Viewer3D {
   public setTime(timePercent: number) {
     if (this._start && this._duration) {
       const timeStamp = this._duration * timePercent;
-      JulianDate.addSeconds(this._start, timeStamp, this._widget.clock.currentTime);
+      JulianDate.addSeconds(
+        this._start,
+        timeStamp,
+        this._widget.clock.currentTime
+      );
     }
   }
 
@@ -165,7 +196,7 @@ export default class Viewer3D {
         const trackedState = this._dataSourceDisplay?.getBoundingSphere(
           entity,
           false,
-          boundingSphere,
+          boundingSphere
         );
         if (trackedState !== BoundingSphereState.DONE) return;
         boundingSpheres.push(boundingSphere);
@@ -175,7 +206,7 @@ export default class Viewer3D {
 
       const boundingSphere = BoundingSphere.fromBoundingSpheres(
         boundingSpheres,
-        new BoundingSphere(),
+        new BoundingSphere()
       );
       this._widget.camera.flyToBoundingSphere(boundingSphere);
     }

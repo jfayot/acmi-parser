@@ -16,6 +16,7 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "paths": { "@math3d": ["./src/math3d"] },
 
     /* Linting */
     "strict": true,
@@ -28,5 +29,5 @@
     "removeComments": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/*"]
+  "include": ["src/**/*"]
 }
