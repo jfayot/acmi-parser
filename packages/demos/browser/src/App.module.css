@@ -9,6 +9,30 @@
   left: 20px;
 }
 
+.home {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.status {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  display: flex;
+  max-width: calc(100% - 240px);
+  transform: translateX(-50%);
+  gap: 8px;
+  pointer-events: none;
+}
+
+.statusItem {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .slider {
   position: absolute;
   bottom: 50px;

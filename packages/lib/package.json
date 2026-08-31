@@ -1,6 +1,6 @@
 {
   "name": "acmi-parser",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "ACMI file format parser",
   "author": "jfayot",
   "repository": {
@@ -36,6 +36,8 @@
   "scripts": {
     "build": "vite build",
     "test": "vitest run",
+    "prepack": "node scripts/package-readme.mjs create",
+    "postpack": "node scripts/package-readme.mjs clean",
     "clean": "rimraf dist",
     "clean:all": "pnpm clean && rimraf node_modules",
     "release": "pnpm build && npm publish"

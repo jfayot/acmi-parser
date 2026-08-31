@@ -5,20 +5,21 @@ import {
   Cartesian3,
   CesiumWidget,
   Color,
-  DataSourceCollection,
   DataSourceDisplay,
   Entity,
   EntityCollection,
-  Event,
   HermitePolynomialApproximation,
   JulianDate,
   ModelGraphics,
   Quaternion,
   QuaternionSpline,
   SampledPositionProperty,
+  ScreenSpaceEventType,
+  type ScreenSpaceEventHandler,
   Terrain,
   TimeInterval,
   TimeIntervalCollection,
+  TrackingReferenceFrame,
 } from "@cesium/engine";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
@@ -28,14 +29,15 @@ import su27 from "./resources/SU-27.glb?url";
 import { notEmpty } from "./utils/notEmpty";
 import { AcmiData, Entity as AcmiEntity, Trajectory } from "acmi-parser";
 
+const trackingOffset = new Cartesian3(-150, 0, 40);
+
 export default class Viewer3D {
   private _widget: CesiumWidget;
   private _dataSourceDisplay: DataSourceDisplay;
   private _entities: EntityCollection;
   private _start?: JulianDate;
   private _duration?: number;
-  private _removeTickCb: Event.RemoveCallback;
-  private _removePostRenderCb: Event.RemoveCallback;
+  private _removePostRenderCb: () => void;
   private _requestFlyTo = false;
   private _controller = new AbortController();
 
@@ -46,15 +48,12 @@ export default class Viewer3D {
     const scene = this._widget.scene;
     scene.globe.depthTestAgainstTerrain = true;
     scene.globe.enableLighting = true;
-    const dataSourceCollection = new DataSourceCollection();
-    this._dataSourceDisplay = new DataSourceDisplay({
-      scene: scene,
-      dataSourceCollection: dataSourceCollection,
-    });
-    this._entities = this._dataSourceDisplay.defaultDataSource.entities;
+    this._dataSourceDisplay = this._widget.dataSourceDisplay;
+    this._entities = this._widget.entities;
 
-    this._removeTickCb = this._widget.clock.onTick.addEventListener(
-      this._tickHandler,
+    this._widget.screenSpaceEventHandler.setInputAction(
+      this._doubleClickHandler,
+      ScreenSpaceEventType.LEFT_DOUBLE_CLICK,
     );
     this._removePostRenderCb = scene.postRender.addEventListener(
       this._postRenderHandler,
@@ -63,7 +62,6 @@ export default class Viewer3D {
 
   public destroy() {
     this._controller.abort();
-    this._removeTickCb();
     this._removePostRenderCb();
     this._widget.camera.cancelFlight();
     this._widget.destroy();
@@ -114,6 +112,8 @@ export default class Viewer3D {
 
     return new Entity({
       id: id.toString(16),
+      trackingReferenceFrame: TrackingReferenceFrame.INERTIAL,
+      viewFrom: trackingOffset,
       availability: new TimeIntervalCollection([
         new TimeInterval({
           start: startTime,
@@ -141,7 +141,13 @@ export default class Viewer3D {
   }
 
   public flyToEntities() {
-    this._requestFlyTo = true;
+    if (this._entities.values.length > 0) this._requestFlyTo = true;
+  }
+
+  /** Stops entity tracking and restores the overview of all loaded entities. */
+  public home() {
+    this._widget.trackedEntity = undefined;
+    this.flyToEntities();
   }
 
   public loadAcmiData(acmiData: AcmiData) {
@@ -173,7 +179,7 @@ export default class Viewer3D {
   }
 
   public setTime(timePercent: number) {
-    if (this._start && this._duration) {
+    if (this._start && this._duration !== undefined) {
       const timeStamp = this._duration * timePercent;
       JulianDate.addSeconds(
         this._start,
@@ -183,8 +189,17 @@ export default class Viewer3D {
     }
   }
 
-  private _tickHandler = () => {
-    this._dataSourceDisplay.update(this._widget.clock.currentTime);
+  private _doubleClickHandler = (
+    event: ScreenSpaceEventHandler.PositionedEvent,
+  ) => {
+    const picked = this._widget.scene.pick(event.position) as
+      | { id?: unknown }
+      | undefined;
+    const entity = picked?.id instanceof Entity ? picked.id : undefined;
+    if (!entity) return;
+
+    this._widget.trackedEntity =
+      this._widget.trackedEntity === entity ? undefined : entity;
   };
 
   private _postRenderHandler = () => {

@@ -1,5 +1,15 @@
 # acmi-parser
 
+## 1.2.1
+
+### Patch Changes
+
+- Include the repository README verbatim in the published npm package.
+
+  Upgrade the browser demo with an automatically loaded sample, filename and
+  timeline controls, double-click aircraft tracking, an inertial chase camera,
+  and a Home overview action.
+
 ## 1.2.0
 
 ### Minor Changes
