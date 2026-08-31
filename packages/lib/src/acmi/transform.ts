@@ -1,16 +1,32 @@
 import { Vector3, Euler, toRadians, Geoid } from "@math3d";
 
+/** Geodetic position and optional orientation for an entity in one frame. */
 export default class Transform {
-  public position: Vector3; // Longitude, Latitude, Altitude
-  public orientation?: Euler; // Roll, Pitch, Yaw
+  /** Longitude (degrees), latitude (degrees), and altitude (metres). */
+  public position: Vector3;
 
+  /** Roll, pitch, and yaw in radians, when supplied by the recording. */
+  public orientation?: Euler;
+
+  /** Global longitude offset in degrees used while decoding transforms. */
   public static refLong = 0;
+
+  /** Global latitude offset in degrees used while decoding transforms. */
   public static refLat = 0;
+
+  /** Optional geoid used to convert source altitudes. */
   public static geoid: Geoid | undefined = undefined;
 
+  /**
+   * Decodes ACMI transform components, inheriting omitted values.
+   *
+   * @param components - Longitude, latitude, altitude, roll, pitch, and yaw.
+   * Empty components are represented by `undefined`.
+   * @param previousTransform - Previous entity state used for omitted values.
+   */
   public constructor(
     components: (number | undefined)[],
-    previousTransform: Transform | undefined
+    previousTransform: Transform | undefined,
   ) {
     if (
       components[0] !== undefined ||
@@ -22,19 +38,19 @@ export default class Transform {
       const longitude =
         components[0] !== undefined
           ? components[0] + Transform.refLong
-          : previousPosition?.x ?? Transform.refLong;
+          : (previousPosition?.x ?? Transform.refLong);
 
       const latitude =
         components[1] !== undefined
           ? components[1] + Transform.refLat
-          : previousPosition?.y ?? Transform.refLat;
+          : (previousPosition?.y ?? Transform.refLat);
 
       const geoidHeight = Transform.geoid?.getHeight(latitude, longitude) ?? 0;
 
       const altitude =
         components[2] !== undefined
           ? components[2] + geoidHeight
-          : previousPosition?.z ?? geoidHeight;
+          : (previousPosition?.z ?? geoidHeight);
 
       this.position = new Vector3(longitude, latitude, altitude);
     } else {

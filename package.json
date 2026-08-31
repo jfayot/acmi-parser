@@ -2,6 +2,7 @@
   "name": "acmi-parser-demo",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.17.0",
   "author": "jfayot",
   "license": "MIT",
   "scripts": {
@@ -14,21 +15,25 @@
     "dev:demo-browser": "pnpm -F demo-browser dev",
     "start:demo-node": "pnpm -F demo-node start",
     "start:demo-browser": "pnpm -F demo-browser preview",
+    "test": "pnpm -r --if-present test",
+    "changeset": "changeset",
+    "version": "changeset version",
     "clean": "pnpm -r --parallel clean",
     "clean:all": "pnpm -r --parallel clean:all && rimraf node_modules",
-    "release": "pnpm -r --parallel release"
+    "release": "pnpm build:parser && changeset publish"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.1",
-    "@commitlint/cli": "^18.4.4",
-    "@commitlint/config-conventional": "^18.4.4",
-    "@commitlint/types": "^18.4.4",
-    "@typescript-eslint/eslint-plugin": "^6.18.1",
-    "@typescript-eslint/parser": "^6.18.1",
-    "eslint": "^8.56.0",
-    "husky": "^8.0.3",
-    "lint-staged": "^15.2.0",
-    "prettier": "^3.1.1",
-    "rimraf": "^5.0.5"
+    "@changesets/cli": "^3.0.1",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@commitlint/types": "^21.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.68.0",
+    "@typescript-eslint/parser": "^8.68.0",
+    "eslint": "^10.9.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.4.1",
+    "prettier": "^3.9.6",
+    "rimraf": "^6.1.3",
+    "typescript": "^7.0.2"
   }
 }

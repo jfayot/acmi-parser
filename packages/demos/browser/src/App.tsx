@@ -5,7 +5,7 @@ import Box from "@mui/material/Box";
 import Viewer3D from "./viewer3D";
 import styles from "./App.module.css";
 import pgmUri from "./resources/egm2008-5.pgm?url";
-import AcmiParser from "acmi-parser";
+import { AcmiParser } from "acmi-parser";
 
 const App: React.FC = () => {
   const divRef = React.useRef<HTMLDivElement>(null);
@@ -30,16 +30,24 @@ const App: React.FC = () => {
     };
   }, [divRef]);
 
-  const handleAcmiFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAcmiFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const { files } = event.target;
     if (files && files.length === 1) {
       const file = files[0];
-      const acmi = new Uint8Array(await file.arrayBuffer());
       const pgm = await pgmBuffer;
 
       const parser = new AcmiParser(pgm);
-      const data = await parser.parse(acmi, {
-        filter: ["Weapon", "Untyped", "Navaid", "Misc", "Projectile", "Parachutist"],
+      const data = await parser.parse(file, {
+        excludedTypes: [
+          "Weapon",
+          "Untyped",
+          "Navaid",
+          "Misc",
+          "Projectile",
+          "Parachutist",
+        ],
       });
       viewer3D?.loadAcmiData(data);
       viewer3D?.flyToEntities();

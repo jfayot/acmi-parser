@@ -2,7 +2,7 @@
   "name": "demo-node",
   "private": true,
   "version": "1.0.1",
-  "type": "commonjs",
+  "type": "module",
   "main": "./dist/index.js",
   "scripts": {
     "dev": "ts-node src/index.ts",
@@ -14,11 +14,12 @@
   },
   "dependencies": {
     "acmi-parser": "workspace:^",
-    "dayjs": "^1.11.10"
+    "dayjs": "^1.11.23"
   },
   "devDependencies": {
-    "@types/node": "^20.10.8",
-    "shx": "^0.3.4",
-    "ts-node": "^10.9.2"
+    "@types/node": "^26.4.0",
+    "shx": "^0.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^7.0.2"
   }
 }

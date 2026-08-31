@@ -2,3 +2,9 @@ packages:
   - "packages/demos/node/"
   - "packages/demos/browser/"
   - "packages/lib/"
+allowBuilds:
+  esbuild: true
+  protobufjs: true
+peerDependencyRules:
+  allowedVersions:
+    typescript: "7"

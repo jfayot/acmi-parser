@@ -9,17 +9,29 @@ import GlobalProperties from "./globalProperties";
 import Header from "./header";
 import TimeSpan from "./timeSpan";
 import Trajectory, {
-  ITrajectoryOptions,
+  TrajectoryOptions,
   Trajectories,
 } from "../trajectory/trajectory";
 import StateVector from "../trajectory/stateVector";
 
+/** Parsed ACMI recording, including metadata, entities, and scene snapshots. */
 export default class AcmiData {
+  /** Whether basic header, property, and timeline validation succeeded. */
   public isValid = true;
+
+  /** File type and ACMI version read from the header. */
   public header = new Header();
+
+  /** Recording-level metadata and reference coordinates. */
   public globalProperties = new GlobalProperties();
+
+  /** Absolute time range covered by the parsed frames. */
   public timeSpan = new TimeSpan();
+
+  /** Entity metadata keyed by numeric ACMI entity ID. */
   public entities = new Map<number, Entity>();
+
+  /** Chronologically ordered scene snapshots. */
   public frames: Array<Frame> = [];
 
   private _searchFrameIndex(searchedTimeStamp: number) {
@@ -41,6 +53,12 @@ export default class AcmiData {
     return index;
   }
 
+  /**
+   * Finds the latest frame at or before an absolute time.
+   *
+   * @param time - Absolute Day.js time to query.
+   * @returns The active frame, or `undefined` outside the recording time span.
+   */
   public getFrame(time: Dayjs): Frame | undefined {
     if (this.timeSpan.isValid()) {
       const start = this.globalProperties.referenceTime;
@@ -59,7 +77,7 @@ export default class AcmiData {
     time: Dayjs,
     frame: Frame,
     trajectories: Trajectories,
-    lastFrame?: boolean
+    lastFrame?: boolean,
   ) {
     const scene = frame.scene;
     lastFrame = lastFrame ?? false;
@@ -87,9 +105,20 @@ export default class AcmiData {
     });
   }
 
-  public createSampledTrajectories(options?: ITrajectoryOptions) {
+  /**
+   * Converts frame snapshots into trajectories sampled at a regular interval.
+   *
+   * @param options - Sampling interval and orientation-emulation settings.
+   * @returns Trajectories keyed by numeric ACMI entity ID.
+   * @throws `RangeError` if `sampleRate` is not finite and greater than zero.
+   * @remarks Unchanged intermediate states are omitted and the final state is
+   * always retained.
+   */
+  public createSampledTrajectories(options?: TrajectoryOptions) {
     const sampleRate = options?.sampleRate ?? 1;
     const emulateOrientation = options?.emulateOrientation ?? false;
+    if (!Number.isFinite(sampleRate) || sampleRate <= 0)
+      throw new RangeError("sampleRate must be a finite number greater than 0");
 
     const trajectories: Trajectories = new Map<number, Trajectory>();
     const timeSpan = this.timeSpan;
@@ -114,7 +143,7 @@ export default class AcmiData {
 
     if (emulateOrientation)
       trajectories.forEach((trajectory) =>
-        trajectory.emulateOrientations(true)
+        trajectory.emulateOrientations(true),
       );
 
     return trajectories;

@@ -3,12 +3,14 @@ import duration from "dayjs/plugin/duration.js";
 dayjs.extend(duration);
 import fs from "node:fs";
 import path from "node:path";
-import AcmiParser from "acmi-parser";
+import { AcmiParser } from "acmi-parser";
 
 const sample = fs.readFileSync(
-  path.join(__dirname, "resources/sample.zip.acmi")
+  path.join(import.meta.dirname, "resources/sample.zip.acmi"),
 );
-const model = fs.readFileSync(path.join(__dirname, "resources/egm2008-5.pgm"));
+const model = fs.readFileSync(
+  path.join(import.meta.dirname, "resources/egm2008-5.pgm"),
+);
 
 const parser = new AcmiParser(model);
 
@@ -22,7 +24,7 @@ const filter: string[] = [
 ];
 
 let start = dayjs();
-parser.parse(sample, { filter: filter }).then((data) => {
+parser.parse(sample, { excludedTypes: filter }).then((data) => {
   let end = dayjs();
   console.log(dayjs.duration(end.diff(start)).asMilliseconds());
 
@@ -35,7 +37,7 @@ parser.parse(sample, { filter: filter }).then((data) => {
   console.log(dayjs.duration(end.diff(start)).asMilliseconds());
 
   trajectories.forEach((trajectory, id) => {
-    const csvPath = path.join(__dirname, `${id}.csv`);
+    const csvPath = path.join(import.meta.dirname, `${id}.csv`);
     const stream = fs.createWriteStream(csvPath);
     const samples = trajectory.samples;
 
@@ -46,7 +48,7 @@ parser.parse(sample, { filter: filter }).then((data) => {
       stream.write(
         `${sample.time.toISOString()},${pos.x},${pos.y},${
           pos.z
-        },${orient?.x},${orient?.y},${orient?.z},${orient?.w}\n`
+        },${orient?.x},${orient?.y},${orient?.z},${orient?.w}\n`,
       );
     });
 

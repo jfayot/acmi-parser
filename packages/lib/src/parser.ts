@@ -1,16 +1,64 @@
 import { parsePGM } from "@math3d";
+import { Uint8ArrayReader, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js";
 import dayjs from "dayjs";
-import { unzip } from "unzipit";
 import Transform from "./acmi/transform";
 import AcmiData from "./acmi/acmiData";
 import Frame from "./acmi/frame";
 import Entity from "./acmi/entity";
 
+/** Options that control entity filtering and cancellation during parsing. */
 export interface AcmiParserOptions {
+  /**
+   * ACMI entity type components to omit from the result.
+   *
+   * @remarks Use `"Untyped"` to omit entities without a `Type` property.
+   */
+  excludedTypes?: readonly string[];
+  /** Signal used to cancel input normalization or ZIP decompression. */
+  signal?: AbortSignal;
+  /** @deprecated Use `excludedTypes` instead. */
   filter?: string[];
+  /** @deprecated Pass the controller's `signal` instead. */
   controller?: AbortController;
 }
 
+/** Binary input accepted by the parser, including typed arrays and Node.js buffers. */
+export type AcmiBinaryInput = ArrayBuffer | ArrayBufferView;
+
+/** Plain ACMI text, binary ACMI data, or a browser `Blob`/`File`. */
+export type AcmiInput = string | AcmiBinaryInput | Blob;
+
+/** Stable codes exposed by {@link AcmiParseError}. */
+export type AcmiParseErrorCode = "INVALID_ARCHIVE" | "UNSUPPORTED_INPUT";
+
+/** Error thrown when input cannot be normalized or a ZIP archive cannot be read. */
+export class AcmiParseError extends Error {
+  /** Machine-readable category for the failure. */
+  public readonly code: AcmiParseErrorCode;
+
+  /** Underlying error, when the failure originated in ZIP decompression. */
+  public readonly cause?: unknown;
+
+  /**
+   * Creates a parser error.
+   *
+   * @param message - Human-readable description of the failure.
+   * @param code - Stable machine-readable failure category.
+   * @param cause - Optional lower-level error that caused the failure.
+   */
+  public constructor(
+    message: string,
+    code: AcmiParseErrorCode,
+    cause?: unknown,
+  ) {
+    super(message);
+    this.name = "AcmiParseError";
+    this.code = code;
+    this.cause = cause;
+  }
+}
+
+/** Stateful parser for Tacview ACMI 2.1 and 2.2 recordings. */
 export default class AcmiParser {
   private _decoder = new TextDecoder();
   private _currentLine = "";
@@ -19,7 +67,7 @@ export default class AcmiParser {
   private _destroyedIds: number[] = [];
   private _filteredIds: number[] = [];
   private _data = new AcmiData();
-  private _filter: string[] = [];
+  private _excludedTypes: readonly string[] = [];
 
   private readonly _acmiVersions = ["2.1", "2.2"];
   private readonly _acmiType = "text/acmi/tacview";
@@ -27,8 +75,41 @@ export default class AcmiParser {
   private readonly _headerPattern =
     /^\ufeff?FileType=(?<type>.*)\r?\nFileVersion=(?<version>.*)\r?\n/;
 
-  public constructor(geoidPgm?: Uint8Array) {
-    if (geoidPgm !== undefined) Transform.geoid = parsePGM(geoidPgm, {});
+  /**
+   * Creates a reusable parser.
+   *
+   * @param geoidPgm - Optional binary PGM geoid model used to correct altitude.
+   * @remarks Parser instances are reusable sequentially. Do not call `parse()`
+   * concurrently on the same instance.
+   */
+  public constructor(geoidPgm?: AcmiBinaryInput) {
+    if (geoidPgm !== undefined)
+      Transform.geoid = parsePGM(this._toUint8Array(geoidPgm), {});
+  }
+
+  private _toUint8Array(data: AcmiBinaryInput) {
+    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  }
+
+  private async _normalizeInput(data: AcmiInput) {
+    if (typeof data === "string") return new TextEncoder().encode(data);
+    if (data instanceof ArrayBuffer || ArrayBuffer.isView(data))
+      return this._toUint8Array(data);
+    if (typeof Blob !== "undefined" && data instanceof Blob)
+      return new Uint8Array(await data.arrayBuffer());
+    throw new AcmiParseError(
+      "Unsupported ACMI input. Expected text, binary data, or a Blob.",
+      "UNSUPPORTED_INPUT",
+    );
+  }
+
+  private _throwIfAborted(signal?: AbortSignal) {
+    if (!signal?.aborted) return;
+    if (signal.reason !== undefined) throw signal.reason;
+    const error = new Error("The operation was aborted");
+    error.name = "AbortError";
+    throw error;
   }
 
   private _isValidVersion() {
@@ -54,6 +135,16 @@ export default class AcmiParser {
     }
   }
 
+  private _consumeContentLine(line: string, index: number) {
+    if (index <= 1 || line.trim().length === 0 || line.startsWith("//")) return;
+    if (line.endsWith("\\")) {
+      this._currentLine += line.slice(0, line.length - 1) + "\n";
+    } else {
+      this._currentLine += line;
+      this._parseLine();
+    }
+  }
+
   private _parseContent(buffer: Uint8Array) {
     const length = buffer.length;
     let start = 0;
@@ -72,40 +163,37 @@ export default class AcmiParser {
         line = this._decoder.decode(buffer.slice(start, lineEnd));
         start = current + 1;
 
-        if (index > 1) {
-          if (line.trim().length !== 0 && !line.startsWith("//")) {
-            if (line.endsWith("\\")) {
-              this._currentLine += line.slice(0, line.length - 1) + "\n";
-            } else {
-              this._currentLine += line;
-              this._parseLine();
-            }
-          }
-        }
+        this._consumeContentLine(line, index);
         ++index;
       }
       ++current;
     }
 
+    if (start < length) {
+      line = this._decoder.decode(buffer.slice(start));
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      this._consumeContentLine(line, index);
+    }
+
     const data = this._data;
     const frames = data.frames;
 
-    if (frames.length > 0) {
+    if (frames.length > 0 || this._currentFrame.scene.size > 0) {
       // Last frame still missing
       frames.push(this._currentFrame);
 
       const referenceTime = data.globalProperties.referenceTime;
       const firstNonEmptyFrameIndex = frames.findIndex(
-        (frame) => frame.scene.size > 0
+        (frame) => frame.scene.size > 0,
       );
       if (referenceTime.isValid() && firstNonEmptyFrameIndex !== -1) {
         data.timeSpan.start = referenceTime.add(
           frames[firstNonEmptyFrameIndex].timeStamp,
-          "seconds"
+          "seconds",
         );
         data.timeSpan.end = referenceTime.add(
           frames[frames.length - 1].timeStamp,
-          "seconds"
+          "seconds",
         );
       } else data.isValid = false;
     }
@@ -189,7 +277,7 @@ export default class AcmiParser {
         this._currentTimeStamp = newTimeStamp;
         this._currentFrame = new Frame(
           this._currentTimeStamp,
-          currentFrame.scene
+          currentFrame.scene,
         );
       }
     } else if (line.startsWith("-")) {
@@ -198,7 +286,7 @@ export default class AcmiParser {
       if (entityProps) {
         entityProps.timeSpan.end = data.globalProperties.referenceTime.add(
           this._currentTimeStamp,
-          "second"
+          "second",
         );
       }
 
@@ -215,7 +303,7 @@ export default class AcmiParser {
           entityProps = new Entity(id);
           entityProps.timeSpan.start = data.globalProperties.referenceTime.add(
             this._currentTimeStamp,
-            "second"
+            "second",
           );
         }
 
@@ -255,7 +343,7 @@ export default class AcmiParser {
                   entityProps!.timeSpan.end =
                     data.globalProperties.referenceTime.add(
                       this._currentTimeStamp,
-                      "second"
+                      "second",
                     );
                 }
                 break;
@@ -268,7 +356,7 @@ export default class AcmiParser {
         });
 
         if (newEntity) {
-          const filter = this._filter;
+          const filter = this._excludedTypes;
           let keep = true;
           if (filter !== undefined && filter.length > 0) {
             const types = entityProps!.types;
@@ -296,12 +384,12 @@ export default class AcmiParser {
               const coords = propValue.split("|");
 
               const components = coords.map((coord) =>
-                coord?.length > 0 ? +coord : undefined
+                coord?.length > 0 ? +coord : undefined,
               );
 
               currentFrame.scene.set(
                 id,
-                new Transform(components, currentFrame.scene.get(id))
+                new Transform(components, currentFrame.scene.get(id)),
               );
             }
           }
@@ -313,17 +401,34 @@ export default class AcmiParser {
     this._currentLine = "";
   }
 
-  private async _unzip(data: Uint8Array) {
+  private async _unzip(data: Uint8Array, signal?: AbortSignal) {
+    this._throwIfAborted(signal);
     let isZipped = false;
     if (data.length > 1)
       isZipped = new TextDecoder().decode(data.slice(0, 2)) === "PK";
 
     if (isZipped) {
-      const { entries } = await unzip(data);
-      const zipEntries = Object.values(entries);
-      if (zipEntries.length === 1)
-        return new Uint8Array(await zipEntries[0].arrayBuffer());
-      throw "Invalid compressed ACMI file";
+      const reader = new ZipReader(new Uint8ArrayReader(data));
+      try {
+        const entries = await reader.getEntries();
+        this._throwIfAborted(signal);
+        if (entries.length === 1 && !entries[0].directory)
+          return await entries[0].getData(new Uint8ArrayWriter(), { signal });
+        throw new AcmiParseError(
+          "A compressed ACMI archive must contain exactly one file.",
+          "INVALID_ARCHIVE",
+        );
+      } catch (error) {
+        this._throwIfAborted(signal);
+        if (error instanceof AcmiParseError) throw error;
+        throw new AcmiParseError(
+          "Unable to read the compressed ACMI archive.",
+          "INVALID_ARCHIVE",
+          error,
+        );
+      } finally {
+        await reader.close();
+      }
     } else return data;
   }
 
@@ -340,15 +445,40 @@ export default class AcmiParser {
     return this._data;
   }
 
-  public async parse(data: Uint8Array, options?: AcmiParserOptions) {
+  /**
+   * Parses plain or single-file ZIP-compressed ACMI input.
+   *
+   * @param data - ACMI text, binary data, or a browser `Blob`/`File`.
+   * @param options - Entity filtering and cancellation options.
+   * @returns The parsed recording model.
+   * @throws {@link AcmiParseError} if input normalization or ZIP reading fails.
+   * @throws The abort signal's reason when the operation is cancelled.
+   */
+  public async parse(data: AcmiInput, options: AcmiParserOptions = {}) {
+    const signal = options.signal ?? options.controller?.signal;
+    this._throwIfAborted(signal);
     this._data = new AcmiData();
-    this._filter = options?.filter ?? [];
+    this._excludedTypes = options.excludedTypes ?? options.filter ?? [];
     this._currentLine = "";
     this._currentTimeStamp = 0;
     this._currentFrame = new Frame(this._currentTimeStamp);
     this._destroyedIds = [];
     this._filteredIds = [];
 
-    return this._parseBuffer(await this._unzip(data));
+    const buffer = await this._normalizeInput(data);
+    this._throwIfAborted(signal);
+    return this._parseBuffer(await this._unzip(buffer, signal));
   }
+}
+
+/**
+ * Parses an ACMI recording with a fresh parser instance.
+ *
+ * @param data - ACMI text, binary data, or a browser `Blob`/`File`.
+ * @param options - Entity filtering and cancellation options.
+ * @returns The parsed recording model.
+ * @throws {@link AcmiParseError} if input normalization or ZIP reading fails.
+ */
+export function parseAcmi(data: AcmiInput, options?: AcmiParserOptions) {
+  return new AcmiParser().parse(data, options);
 }

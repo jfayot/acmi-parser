@@ -1,6 +1,6 @@
 {
   "name": "acmi-parser",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "ACMI file format parser",
   "author": "jfayot",
   "repository": {
@@ -17,6 +17,8 @@
   "bugs": "https://github.com/jfayot/acmi-parser/issues",
   "license": "MIT",
   "publishConfig": {
+    "access": "public",
+    "provenance": true,
     "registry": "https://registry.npmjs.org/"
   },
   "files": [
@@ -25,14 +27,15 @@
   "type": "module",
   "main": "./dist/acmi-parser.cjs",
   "module": "./dist/acmi-parser.js",
-  "types": "./dist/types/acmi-parser.d.ts",
+  "types": "./dist/types/index.d.ts",
   "exports": {
-    "types": "./dist/types/acmi-parser.d.ts",
+    "types": "./dist/types/index.d.ts",
     "import": "./dist/acmi-parser.js",
     "require": "./dist/acmi-parser.cjs"
   },
   "scripts": {
     "build": "vite build",
+    "test": "vitest run",
     "clean": "rimraf dist",
     "clean:all": "pnpm clean && rimraf node_modules",
     "release": "pnpm build && npm publish"
@@ -52,12 +55,14 @@
     ]
   },
   "dependencies": {
-    "dayjs": "^1.11.10",
-    "unzipit": "^1.4.3"
+    "@zip.js/zip.js": "^2.8.61",
+    "dayjs": "^1.11.23"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
-    "vite": "^5.0.11",
-    "vite-plugin-dts": "^3.7.0"
+    "@typescript/typescript6": "^6.0.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vite-plugin-dts": "^5.0.3",
+    "vitest": "^4.1.11"
   }
 }

@@ -1,10 +1,20 @@
 import { Ellipsoid, Vector3, Quaternion, Matrix4, Matrix3 } from "@math3d";
 import Transform from "../acmi//transform";
 
+/** WGS84 fixed-frame position and optional orientation. */
 export default class StateVector {
+  /** Earth-centred, Earth-fixed Cartesian position in metres. */
   public cartesian: Vector3 = new Vector3();
+
+  /** Fixed-frame orientation quaternion, when available. */
   public quaternion?: Quaternion = undefined;
 
+  /**
+   * Compares position and orientation components with another state vector.
+   *
+   * @param stateVector - State vector to compare.
+   * @returns Whether both state vectors contain equal components.
+   */
   public equals(stateVector: StateVector) {
     return (
       stateVector.cartesian.equals(this.cartesian) &&
@@ -20,6 +30,13 @@ export default class StateVector {
   private static _scratchHprMatrix = new Matrix4();
   private static _scratchTranslationMatrix = new Matrix4();
   private static _scratchRotation = new Matrix3();
+  /**
+   * Converts a geodetic transform into the WGS84 fixed frame.
+   *
+   * @param transform - Geodetic position and optional local orientation.
+   * @param result - Optional object to populate instead of allocating one.
+   * @returns The populated state vector.
+   */
   public static fromTransform(transform: Transform, result?: StateVector) {
     if (result === undefined) result = new StateVector();
 
@@ -47,14 +64,14 @@ export default class StateVector {
         "west",
         "up",
         cartesian,
-        this._scratchTranslationMatrix
+        this._scratchTranslationMatrix,
       );
 
       const headingPitchRollToFixedFrame =
         translationMatrix.multiplyRight(hprMatrix);
 
       const rotation = headingPitchRollToFixedFrame.getRotationMatrix3(
-        this._scratchRotation
+        this._scratchRotation,
       );
 
       if (result.quaternion === undefined) result.quaternion = new Quaternion();

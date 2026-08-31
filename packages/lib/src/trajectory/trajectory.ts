@@ -29,14 +29,32 @@ const _rollQuat = new Quaternion();
 const _hprQuat = new Quaternion();
 const _wgs84 = Ellipsoid.WGS84;
 
-export interface ITrajectoryOptions {
+/** Options used when sampling trajectories from frame snapshots. */
+export interface TrajectoryOptions {
+  /**
+   * Sampling interval in seconds.
+   *
+   * @defaultValue `1`
+   */
   sampleRate?: number;
+
+  /**
+   * Whether to derive orientations from movement and turning motion.
+   *
+   * @defaultValue `false`
+   */
   emulateOrientation?: boolean;
 }
 
+/** @deprecated Use `TrajectoryOptions` instead. */
+export type ITrajectoryOptions = TrajectoryOptions;
+
+/** Chronologically ordered state-vector samples for one entity. */
 export default class Trajectory {
+  /** Mutable ordered collection of trajectory samples. */
   public samples: ITrajectorySample[] = [];
 
+  /** @returns Whether the first sample contains an orientation quaternion. */
   public hasOrientations() {
     return this.samples[0]?.stateVector.quaternion !== undefined;
   }
@@ -56,7 +74,7 @@ export default class Trajectory {
     p1: Vector3,
     q1: Quaternion,
     speed: number,
-    dt: number
+    dt: number,
   ) {
     const hpr0 = _wgs84
       .getEulerFromPositionQuaternion(p0, q0, _hpr0)
@@ -89,7 +107,7 @@ export default class Trajectory {
     s0: ITrajectorySample,
     s1: ITrajectorySample,
     s2: ITrajectorySample,
-    withRoll: boolean
+    withRoll: boolean,
   ) {
     const p0 = s0.stateVector.cartesian;
     const p1 = s1.stateVector.cartesian;
@@ -134,6 +152,14 @@ export default class Trajectory {
     }
   }
 
+  /**
+   * Derives and assigns orientations for all samples from their motion.
+   *
+   * @param withRoll - Whether to estimate bank angle from turning motion.
+   * @remarks This method mutates sample state vectors and replaces any source
+   * orientations. For the final two samples, it reuses the last computable
+   * orientation because no forward interval is available.
+   */
   public emulateOrientations(withRoll?: boolean) {
     const samples = this.samples;
 
@@ -145,7 +171,7 @@ export default class Trajectory {
           .getQuaternionFromEuler(
             stateVector.cartesian,
             _defaultEuler,
-            _hprQuat
+            _hprQuat,
           )
           .clone();
       });
@@ -162,7 +188,7 @@ export default class Trajectory {
         s0,
         s1,
         s2,
-        withRoll
+        withRoll,
       );
     }
 
@@ -173,4 +199,5 @@ export default class Trajectory {
   }
 }
 
+/** Entity trajectories keyed by numeric ACMI entity ID. */
 export type Trajectories = Map<number, Trajectory>;

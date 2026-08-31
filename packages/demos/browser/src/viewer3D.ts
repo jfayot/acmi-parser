@@ -54,10 +54,10 @@ export default class Viewer3D {
     this._entities = this._dataSourceDisplay.defaultDataSource.entities;
 
     this._removeTickCb = this._widget.clock.onTick.addEventListener(
-      this._tickHandler
+      this._tickHandler,
     );
     this._removePostRenderCb = scene.postRender.addEventListener(
-      this._postRenderHandler
+      this._postRenderHandler,
     );
   }
 
@@ -72,7 +72,7 @@ export default class Viewer3D {
   private _createEntity(
     id: number,
     trajectory: Trajectory,
-    entity: AcmiEntity
+    entity: AcmiEntity,
   ) {
     const timeSpan = entity.timeSpan;
     const startTime = JulianDate.fromDate(timeSpan.start.toDate());
@@ -81,21 +81,21 @@ export default class Viewer3D {
 
     const orientationSpline = new QuaternionSpline({
       times: samples.map((sample) =>
-        dayjs.duration(sample.time.diff(timeSpan.start)).asSeconds()
+        dayjs.duration(sample.time.diff(timeSpan.start)).asSeconds(),
       ),
       points: samples
         .map((sample) =>
           sample.stateVector.quaternion
             ? Quaternion.unpack(sample.stateVector.quaternion)
-            : undefined
+            : undefined,
         )
         .filter(notEmpty),
     });
 
     const scratch = new Quaternion();
-    const orientationCb = (time: JulianDate) => {
+    const orientationCb = (time = JulianDate.now(), result = scratch) => {
       const delta = JulianDate.secondsDifference(time, startTime);
-      return orientationSpline.evaluate(delta, scratch);
+      return orientationSpline.evaluate(delta, result);
     };
 
     const sampledPos = new SampledPositionProperty();
@@ -106,7 +106,7 @@ export default class Viewer3D {
     samples.forEach((sample) => {
       const time = JulianDate.fromIso8601(
         sample.time.toISOString(),
-        new JulianDate()
+        new JulianDate(),
       );
       const pos = sample.stateVector.cartesian;
       sampledPos.addSample(time, Cartesian3.unpack(pos));
@@ -160,7 +160,7 @@ export default class Viewer3D {
     }
 
     const startTime = JulianDate.fromIso8601(
-      acmiData.timeSpan.start.toISOString()
+      acmiData.timeSpan.start.toISOString(),
     );
     const endTime = JulianDate.fromIso8601(acmiData.timeSpan.end.toISOString());
 
@@ -178,7 +178,7 @@ export default class Viewer3D {
       JulianDate.addSeconds(
         this._start,
         timeStamp,
-        this._widget.clock.currentTime
+        this._widget.clock.currentTime,
       );
     }
   }
@@ -196,7 +196,7 @@ export default class Viewer3D {
         const trackedState = this._dataSourceDisplay?.getBoundingSphere(
           entity,
           false,
-          boundingSphere
+          boundingSphere,
         );
         if (trackedState !== BoundingSphereState.DONE) return;
         boundingSpheres.push(boundingSphere);
@@ -206,7 +206,7 @@ export default class Viewer3D {
 
       const boundingSphere = BoundingSphere.fromBoundingSpheres(
         boundingSpheres,
-        new BoundingSphere()
+        new BoundingSphere(),
       );
       this._widget.camera.flyToBoundingSphere(boundingSphere);
     }

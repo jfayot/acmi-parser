@@ -8,21 +8,38 @@ import Transform from "./acmi/transform";
 import StateVector from "./trajectory/stateVector";
 import Trajectory, {
   ITrajectoryOptions,
+  TrajectoryOptions,
   Trajectories,
 } from "./trajectory/trajectory";
-import ITrajectorySample from "./trajectory/trajectorySample";
-import AcmiParser, { AcmiParserOptions } from "./parser";
+import TrajectorySample, {
+  ITrajectorySample,
+} from "./trajectory/trajectorySample";
+import AcmiParser, {
+  AcmiBinaryInput,
+  AcmiInput,
+  AcmiParseError,
+  AcmiParseErrorCode,
+  AcmiParserOptions,
+  parseAcmi,
+} from "./parser";
 
 export type {
   Scene,
   ITrajectoryOptions,
+  TrajectoryOptions,
   Trajectories,
   ITrajectorySample,
+  TrajectorySample,
+  AcmiBinaryInput,
+  AcmiInput,
+  AcmiParseErrorCode,
   AcmiParserOptions,
 };
 
 export {
   AcmiData,
+  AcmiParseError,
+  AcmiParser,
   Entity,
   Frame,
   GlobalProperties,
@@ -31,6 +48,7 @@ export {
   TimeSpan,
   Trajectory,
   Transform,
+  parseAcmi,
 };
 
 export default AcmiParser;

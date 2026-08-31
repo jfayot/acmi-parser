@@ -1,8 +1,12 @@
-import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
 import dts from "vite-plugin-dts";
 
 export default defineConfig({
-  plugins: [dts({ rollupTypes: true, outDir: "./dist/types" })],
+  plugins: [dts({ outDirs: "./dist/types" })],
+  test: {
+    include: ["test/**/*.test.ts"],
+  },
   build: {
     lib: {
       entry: "./src/index.ts",
@@ -19,7 +23,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@math3d": "./src/math3d/index.ts",
+      "@math3d": fileURLToPath(
+        new URL("./src/math3d/index.ts", import.meta.url),
+      ),
     },
   },
 });
