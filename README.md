@@ -1,5 +1,10 @@
 # acmi-parser
 
+[![CI](https://github.com/jfayot/acmi-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/jfayot/acmi-parser/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/acmi-parser.svg)](https://www.npmjs.com/package/acmi-parser)
+[![npm downloads](https://img.shields.io/npm/dm/acmi-parser.svg)](https://www.npmjs.com/package/acmi-parser)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Parse Tacview ACMI 2.1 and 2.2 recordings in Node.js or the browser.
 
 [Open the browser demo](https://jfayot.github.io/acmi-parser/)

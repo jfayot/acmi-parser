@@ -1,11 +1,9 @@
 import {
-  BoundingSphere,
-  BoundingSphereState,
   CallbackProperty,
   Cartesian3,
   CesiumWidget,
+  ClockRange,
   Color,
-  DataSourceDisplay,
   Entity,
   EntityCollection,
   HermitePolynomialApproximation,
@@ -29,16 +27,13 @@ import su27 from "./resources/SU-27.glb?url";
 import { notEmpty } from "./utils/notEmpty";
 import { AcmiData, Entity as AcmiEntity, Trajectory } from "acmi-parser";
 
-const trackingOffset = new Cartesian3(-150, 0, 40);
+const trackingOffset = new Cartesian3(-150, 0, 20);
 
 export default class Viewer3D {
   private _widget: CesiumWidget;
-  private _dataSourceDisplay: DataSourceDisplay;
   private _entities: EntityCollection;
   private _start?: JulianDate;
   private _duration?: number;
-  private _removePostRenderCb: () => void;
-  private _requestFlyTo = false;
   private _controller = new AbortController();
 
   constructor(cesiumRoot: HTMLDivElement) {
@@ -48,21 +43,16 @@ export default class Viewer3D {
     const scene = this._widget.scene;
     scene.globe.depthTestAgainstTerrain = true;
     scene.globe.enableLighting = true;
-    this._dataSourceDisplay = this._widget.dataSourceDisplay;
     this._entities = this._widget.entities;
 
     this._widget.screenSpaceEventHandler.setInputAction(
       this._doubleClickHandler,
       ScreenSpaceEventType.LEFT_DOUBLE_CLICK,
     );
-    this._removePostRenderCb = scene.postRender.addEventListener(
-      this._postRenderHandler,
-    );
   }
 
   public destroy() {
     this._controller.abort();
-    this._removePostRenderCb();
     this._widget.camera.cancelFlight();
     this._widget.destroy();
   }
@@ -141,7 +131,13 @@ export default class Viewer3D {
   }
 
   public flyToEntities() {
-    if (this._entities.values.length > 0) this._requestFlyTo = true;
+    const currentTime = this._widget.clock.currentTime;
+    const availableEntities = this._entities.values.filter((entity) =>
+      entity.isAvailable(currentTime),
+    );
+    if (availableEntities.length > 0) {
+      void this._widget.flyTo(availableEntities, { duration: 1 });
+    }
   }
 
   /** Stops entity tracking and restores the overview of all loaded entities. */
@@ -151,6 +147,7 @@ export default class Viewer3D {
   }
 
   public loadAcmiData(acmiData: AcmiData) {
+    this._widget.clock.shouldAnimate = false;
     this._entities.removeAll();
     const entities = acmiData.entities;
     const trajectories = acmiData.createSampledTrajectories({
@@ -176,6 +173,7 @@ export default class Viewer3D {
     this._widget.clock.startTime = startTime.clone();
     this._widget.clock.stopTime = endTime.clone();
     this._widget.clock.currentTime = startTime.clone();
+    this._widget.clock.clockRange = ClockRange.CLAMPED;
   }
 
   public setTime(timePercent: number) {
@@ -189,41 +187,31 @@ export default class Viewer3D {
     }
   }
 
+  public getTimePercent() {
+    if (!this._start || this._duration === undefined || this._duration <= 0) {
+      return 0;
+    }
+
+    const elapsed = JulianDate.secondsDifference(
+      this._widget.clock.currentTime,
+      this._start,
+    );
+    return Math.min(1, Math.max(0, elapsed / this._duration));
+  }
+
+  public setPlaying(isPlaying: boolean) {
+    this._widget.clock.shouldAnimate = isPlaying;
+  }
+
   private _doubleClickHandler = (
     event: ScreenSpaceEventHandler.PositionedEvent,
   ) => {
     const picked = this._widget.scene.pick(event.position) as
-      | { id?: unknown }
-      | undefined;
+      { id?: unknown } | undefined;
     const entity = picked?.id instanceof Entity ? picked.id : undefined;
     if (!entity) return;
 
     this._widget.trackedEntity =
       this._widget.trackedEntity === entity ? undefined : entity;
-  };
-
-  private _postRenderHandler = () => {
-    if (this._requestFlyTo) {
-      const boundingSpheres: BoundingSphere[] = [];
-      const entities = this._entities.values;
-      for (const entity of entities) {
-        const boundingSphere = new BoundingSphere();
-        const trackedState = this._dataSourceDisplay?.getBoundingSphere(
-          entity,
-          false,
-          boundingSphere,
-        );
-        if (trackedState !== BoundingSphereState.DONE) return;
-        boundingSpheres.push(boundingSphere);
-      }
-
-      this._requestFlyTo = false;
-
-      const boundingSphere = BoundingSphere.fromBoundingSpheres(
-        boundingSpheres,
-        new BoundingSphere(),
-      );
-      this._widget.camera.flyToBoundingSphere(boundingSphere);
-    }
   };
 }

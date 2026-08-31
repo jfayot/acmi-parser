@@ -3,40 +3,87 @@
   height: 100%;
 }
 
-.load {
+.loading {
   position: absolute;
-  top: 20px;
-  left: 20px;
-}
-
-.home {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-}
-
-.status {
-  position: absolute;
-  top: 20px;
+  z-index: 1;
+  top: 50%;
   left: 50%;
   display: flex;
-  max-width: calc(100% - 240px);
-  transform: translateX(-50%);
-  gap: 8px;
+  align-items: center;
+  padding: 16px 20px;
+  transform: translate(-50%, -50%);
+  border-radius: 4px;
+  background: rgb(255 255 255 / 90%);
+  box-shadow: 0 3px 8px rgb(0 0 0 / 25%);
+  gap: 12px;
+  font-family: Roboto, sans-serif;
+  font-weight: 500;
+  white-space: nowrap;
   pointer-events: none;
 }
 
-.statusItem {
+.controls {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.loadRow {
+  display: flex;
+  max-width: calc(100vw - 40px);
+  gap: 8px;
+}
+
+.fileName,
+.timeLabel {
+  pointer-events: none;
+}
+
+.fileName {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.slider {
+.timeline {
   position: absolute;
-  bottom: 50px;
+  bottom: 40px;
   left: 50px;
   right: 50px;
-  height: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.playbackControls {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 16px;
+}
+
+.playPause {
+  color: white !important;
+  background-color: #1976d2 !important;
+}
+
+.playPause:hover {
+  background-color: #1565c0 !important;
+}
+
+.playPause:global(.Mui-disabled) {
+  color: rgb(255 255 255 / 50%) !important;
+  background-color: rgb(25 118 210 / 50%) !important;
+}
+
+.playPause svg {
+  width: 24px;
+  height: 24px;
+  fill: currentcolor;
 }

@@ -2,6 +2,8 @@ import React from "react";
 import Slider from "@mui/material/Slider";
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
 import Viewer3D from "./viewer3D";
 import styles from "./App.module.css";
 import pgmUri from "./resources/egm2008-5.pgm?url";
@@ -32,6 +34,8 @@ const App: React.FC = () => {
   const [loadedFileName, setLoadedFileName] = React.useState("");
   const [timeline, setTimeline] = React.useState<Timeline | null>(null);
   const [timePercent, setTimePercent] = React.useState(0);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(false);
 
   const pgmBuffer = React.useMemo(async () => {
     return new Uint8Array(await (await fetch(pgmUri)).arrayBuffer());
@@ -56,20 +60,28 @@ const App: React.FC = () => {
       if (!viewer3D) return;
 
       const loadId = ++latestLoadRef.current;
-      const [file, pgm] = await Promise.all([source, pgmBuffer]);
-      const parser = new AcmiParser(pgm);
-      const data = await parser.parse(file, { excludedTypes });
+      setIsLoading(true);
+      try {
+        const [file, pgm] = await Promise.all([source, pgmBuffer]);
+        const parser = new AcmiParser(pgm);
+        const data = await parser.parse(file, { excludedTypes });
 
-      if (loadId !== latestLoadRef.current) return;
+        if (loadId !== latestLoadRef.current) return;
 
-      viewer3D.loadAcmiData(data);
-      viewer3D.flyToEntities();
-      setLoadedFileName(fileName);
-      setTimeline({
-        start: data.timeSpan.start,
-        duration: data.timeSpan.duration(),
-      });
-      setTimePercent(0);
+        viewer3D.loadAcmiData(data);
+        viewer3D.flyToEntities();
+        setIsPlaying(false);
+        setLoadedFileName(fileName);
+        setTimeline({
+          start: data.timeSpan.start,
+          duration: data.timeSpan.duration(),
+        });
+        setTimePercent(0);
+      } finally {
+        if (loadId === latestLoadRef.current) {
+          setIsLoading(false);
+        }
+      }
     },
     [pgmBuffer, viewer3D],
   );
@@ -79,7 +91,9 @@ const App: React.FC = () => {
 
     const sample = fetch(sampleUri).then(async (response) => {
       if (!response.ok) {
-        throw new Error(`Failed to load ${defaultFileName}: ${response.status}`);
+        throw new Error(
+          `Failed to load ${defaultFileName}: ${response.status}`,
+        );
       }
       return response.blob();
     });
@@ -112,6 +126,38 @@ const App: React.FC = () => {
     viewer3D?.setTime(nextTimePercent);
   };
 
+  const handlePlaybackToggle = () => {
+    if (!viewer3D || !timeline) return;
+
+    const shouldPlay = !isPlaying;
+    if (shouldPlay && viewer3D.getTimePercent() >= 1) {
+      viewer3D.setTime(0);
+      setTimePercent(0);
+    }
+    viewer3D.setPlaying(shouldPlay);
+    setIsPlaying(shouldPlay);
+  };
+
+  React.useEffect(() => {
+    if (!viewer3D || !isPlaying) return;
+
+    let animationFrame = 0;
+    const updateTimeline = () => {
+      const nextTimePercent = viewer3D.getTimePercent();
+      setTimePercent(nextTimePercent);
+
+      if (nextTimePercent >= 1) {
+        viewer3D.setPlaying(false);
+        setIsPlaying(false);
+        return;
+      }
+      animationFrame = requestAnimationFrame(updateTimeline);
+    };
+
+    animationFrame = requestAnimationFrame(updateTimeline);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [isPlaying, viewer3D]);
+
   const currentTime = timeline
     ? timeline.start
         .add(timeline.duration * timePercent, "seconds")
@@ -121,51 +167,73 @@ const App: React.FC = () => {
   return (
     <React.Fragment>
       <div className={styles.container} ref={divRef} />
-      {loadedFileName && currentTime && (
-        <Box className={styles.status}>
-          <Button
-            className={styles.statusItem}
-            variant="contained"
-            component="span"
-            title={loadedFileName}
-          >
-            {loadedFileName}
+      {isLoading && (
+        <Box className={styles.loading} role="status" aria-live="polite">
+          <CircularProgress size={32} />
+          <span>Loading ACMI data...</span>
+        </Box>
+      )}
+      <Box className={styles.controls}>
+        <Box className={styles.loadRow}>
+          <input
+            ref={acmiInputRef}
+            type="file"
+            onChange={handleAcmiFileSelect}
+            accept=".acmi"
+            style={{ display: "none" }}
+          />
+          <Button variant="contained" onClick={handleLoadAcmi}>
+            Load ACMI
           </Button>
+          {loadedFileName && (
+            <Button
+              className={styles.fileName}
+              variant="contained"
+              component="span"
+              title={loadedFileName}
+            >
+              {loadedFileName}
+            </Button>
+          )}
+        </Box>
+        <Button variant="contained" onClick={() => viewer3D?.home()}>
+          Fly To
+        </Button>
+      </Box>
+      <Box className={styles.timeline}>
+        {currentTime && (
           <Button
-            className={styles.statusItem}
+            className={styles.timeLabel}
             variant="contained"
             component="span"
           >
             {currentTime}
           </Button>
+        )}
+        <Box className={styles.playbackControls}>
+          <IconButton
+            className={styles.playPause}
+            onClick={handlePlaybackToggle}
+            disabled={!timeline}
+            aria-label={isPlaying ? "Pause replay" : "Play replay"}
+            title={isPlaying ? "Pause replay" : "Play replay"}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d={isPlaying ? "M6 5h4v14H6zm8 0h4v14h-4z" : "M8 5v14l11-7z"}
+              />
+            </svg>
+          </IconButton>
+          <Slider
+            min={0}
+            max={1}
+            step={0.0001}
+            value={timePercent}
+            onChange={handleSliderChange}
+            disabled={!timeline}
+            aria-label="Recording time"
+          />
         </Box>
-      )}
-      <Box className={styles.load}>
-        <input
-          ref={acmiInputRef}
-          type="file"
-          onChange={handleAcmiFileSelect}
-          accept=".acmi"
-          style={{ display: "none" }}
-        />
-        <Button variant="contained" onClick={handleLoadAcmi}>
-          Load ACMI
-        </Button>
-      </Box>
-      <Box className={styles.home}>
-        <Button variant="contained" onClick={() => viewer3D?.home()}>
-          Home
-        </Button>
-      </Box>
-      <Box className={styles.slider}>
-        <Slider
-          min={0}
-          max={1}
-          step={0.0001}
-          value={timePercent}
-          onChange={handleSliderChange}
-          aria-label="Recording time"
-        />
       </Box>
     </React.Fragment>
   );
